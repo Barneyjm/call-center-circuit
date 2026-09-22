@@ -19,6 +19,36 @@ DEPARTMENTS = {
     "other": "None of the above, or not about our service at all",
 }
 
+# The twenty most spoken languages in US homes after English (American Community Survey),
+# because a support line takes the calls the country makes. Twenty-two options is nothing for
+# Jev or the circuit family and more than SemIf or Laya can be asked at all; see the README.
+LANGUAGES = dict.fromkeys(
+    [
+        "English",
+        "Spanish",
+        "Chinese",
+        "Tagalog",
+        "Vietnamese",
+        "Arabic",
+        "French",
+        "Korean",
+        "Russian",
+        "Haitian Creole",
+        "German",
+        "Hindi",
+        "Portuguese",
+        "Italian",
+        "Polish",
+        "Urdu",
+        "Japanese",
+        "Persian",
+        "Gujarati",
+        "Telugu",
+        "Bengali",
+    ]
+) | {"other": "Any other language"}
+
+
 URGENCY = [
     "Can wait a few days: a question, a preference, a minor inconvenience",
     "Should be handled today: something is wrong but the caller can work around it",
@@ -27,8 +57,11 @@ URGENCY = [
 ]
 
 
-def build_circuit() -> Circuit:
+def build_circuit(max_options: int | None = None) -> Circuit:
+    """`max_options` trims the language list for a backend that caps a question's options
+    (SemIf and Laya stop at 16, and refuse the whole request, not just that question)."""
     c = Circuit()
+    languages = LANGUAGES if max_options is None else dict(list(LANGUAGES.items())[: max_options - 1]) | {"other": "Any other language"}
 
     # ---- what the model is asked, all in one request -------------------------------
     c.choice("dept", "Which team should handle this contact? Pick the single best fit.", DEPARTMENTS)
@@ -55,7 +88,7 @@ def build_circuit() -> Circuit:
     c.noul("single_topic", "Is the caller raising one issue, rather than several unrelated ones?", true="One issue", false="Several unrelated issues")
     # Asked as a choice, not "is it English?": the audio model answers that yes/no with yes for
     # every clip it hears, and names the language correctly when it is offered the options.
-    c.choice("language", "Which language is the caller speaking?", {"English": None, "Spanish": None, "French": None, "other": "Any other language"})
+    c.choice("language", "Which language is the caller speaking?", languages)
 
     # ---- what the code decides ------------------------------------------------------
     # The queue. The pick is trusted only when the model is confident and the checker

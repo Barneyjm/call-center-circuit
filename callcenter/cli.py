@@ -24,18 +24,20 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("path", nargs="?", default="calls")
     ap.add_argument("--backend", default="jev", help=", ".join(BACKENDS))
     ap.add_argument("--model", default=None)
+    ap.add_argument("--max-options", type=int, default=None, help="trim the language list for a backend that caps options (semif, laya: 16)")
     ap.add_argument("--json", action="store_true", help="print the full ticket with its audit record")
     args = ap.parse_args(argv)
 
     if args.command == "diagram":
-        print(build_circuit().to_mermaid())
+        print(build_circuit(args.max_options).to_mermaid())
         return
     backend = pick_backend(args.backend, args.model)
     calls = load_calls(args.path)
+    circuit = build_circuit(args.max_options)
 
     if args.command == "route":
         for call in calls:
-            t = triage(call, backend, model=args.model)
+            t = triage(call, backend, model=args.model, circuit=circuit)
             if args.json:
                 print(t.to_json())
             else:
@@ -45,7 +47,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "batch":
         print(f"{'call':28s} {'queue':16s} {'prio':5s} {'person':7s} {'deflect':8s} {'redact':7s} {'ms':>6s}   route trace")
         for call in calls:
-            t = triage(call, backend, model=args.model)
+            t = triage(call, backend, model=args.model, circuit=circuit)
             route = t.audit["gates"]["route"]
             redacted = "yes" if t.audit["gates"]["redact"]["value"] else ""
             trace = "; ".join(route["trace"] or [])[:70]

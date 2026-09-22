@@ -56,6 +56,12 @@ contract (typed questions in, probabilities out, one pass). `--backend` picks it
 | `circuits` | the open-weights circuit family, hosted at decisioncircuits.com | `DECISIONCIRCUITS_API_KEY`, or a free key is issued on first run |
 | `local` | the same open weights on your own machine | none |
 | `semif` | SemIf on the LangSmith gateway | `LANGSMITH_API_KEY` |
+
+SemIf and Laya cap a question at 16 options, and refuse the whole request when one
+exceeds it, not just that question. This circuit's language question offers 22 (the twenty
+most spoken languages in US homes, plus English and `other`), so those backends need
+`--max-options 16`, which trims the list. Jev takes up to 255; the circuit family has no
+cap. It is worth knowing before a 20-way router meets a `422`.
 | `openai`, `anthropic` | a chat model, read through logprobs or tool use | the vendor's key |
 | `fake` | the hand-written answers in `calls/*.json` | none |
 
@@ -94,7 +100,7 @@ one request:
 | `repeat` | yes/no | attach the previous ticket, skip the back of the queue |
 | `self_service` | yes/no | send a help article instead of opening a ticket |
 | `single_topic` | yes/no | the checker: a route is only trusted when the contact is about one thing |
-| `language` | choice of 4 | the translated queue |
+| `language` | choice of 22 | the translated queue |
 
 And the gates:
 
@@ -184,8 +190,8 @@ Clips longer than 30 seconds are judged on their first 30; split long calls and 
 chunk. The Spanish call is recorded with Kokoro's Spanish voice and routes to billing from the
 sound. It is also why the language question is a choice: asked "is the caller speaking
 English?" the audio model says yes at p=1.00 to the Spanish clip, because its training
-audio is all English and a yes/no gives it nothing to compare against. Offered English,
-Spanish, French or other, it names Spanish at .92. A question worded as a comparison is
+audio is all English and a yes/no gives it nothing to compare against. Offered the twenty most spoken
+languages in US homes plus `other`, it names Spanish at .87 and English at 1.00. A question worded as a comparison is
 often the fix for a model that answers a yes/no by default.
 
 ## Inside an agent framework

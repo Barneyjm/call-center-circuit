@@ -100,3 +100,11 @@ def test_a_recording_is_routed_from_the_audio_and_never_transcribed_into_the_log
     assert "4532" not in t.transcript_for_log and "withheld" in t.transcript_for_log
     calm = triage(audio_calls["05_cancel"], FakeBackend(CALLS["05_cancel"]["expected_answers"]))
     assert calm.transcript_for_log.startswith("recording: ")
+
+
+def test_max_options_trims_the_language_list_for_capped_backends():
+    full = build_circuit().questions["language"]["criteria"]
+    assert len(full) == 22 and "Bengali" in full
+    trimmed = build_circuit(max_options=16).questions["language"]["criteria"]
+    keys = list(trimmed)
+    assert len(trimmed) == 16 and keys[0] == "English" and keys[-1] == "other"
