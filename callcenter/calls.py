@@ -9,6 +9,17 @@ from typing import Any
 
 
 def load_calls(path: str | Path) -> list[dict[str, Any]]:
+    """A directory of .json calls, or of .wav recordings, or one file of either. A
+    recording is routed from the audio itself; its .json twin, if there is one next to
+    the calls directory, is kept only so the table can show what was said."""
     p = Path(path)
-    files = sorted(p.glob("*.json")) if p.is_dir() else [p]
-    return [json.loads(f.read_text()) | {"file": f.name} for f in files]
+    files = sorted(list(p.glob("*.json")) + list(p.glob("*.wav"))) if p.is_dir() else [p]
+    calls = []
+    for f in files:
+        if f.suffix == ".wav":
+            twin = next((t for t in (f.with_suffix(".json"), f.parent.parent / f.with_suffix(".json").name) if t.exists()), None)
+            meta = json.loads(twin.read_text()) if twin else {}
+            calls.append({"id": f.stem, "channel": "phone", "audio": str(f), "transcript": meta.get("transcript", ""), "file": f.name})
+        else:
+            calls.append(json.loads(f.read_text()) | {"file": f.name})
+    return calls

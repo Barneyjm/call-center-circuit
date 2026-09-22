@@ -88,3 +88,15 @@ def test_priority_near_a_cutpoint_rounds_toward_faster():
     call["expected_answers"] = dict(call["expected_answers"], urgency={"0": 0.55, "1": 0.45, "2": 0.0, "3": 0.0})  # score 0.45, cutpoint 0.5
     t = triage(call, FakeBackend())
     assert t.priority == "P3" and "rounded up" in " ".join(t.audit["gates"]["priority"]["trace"])
+
+
+def test_a_recording_is_routed_from_the_audio_and_never_transcribed_into_the_log():
+    audio_calls = {c["id"]: c for c in load_calls(Path(__file__).resolve().parents[1] / "calls" / "audio")}
+    call = audio_calls["04_card_number"]
+    assert call["audio"].endswith("04_card_number.wav") and call["transcript"]  # the twin .json supplies the text for display only
+    answers = CALLS["04_card_number"]["expected_answers"]
+    t = triage(call, FakeBackend(answers))
+    assert t.queue == "billing" and t.audit["model"] == "circuit-audio-7b"
+    assert "4532" not in t.transcript_for_log and "withheld" in t.transcript_for_log
+    calm = triage(audio_calls["05_cancel"], FakeBackend(CALLS["05_cancel"]["expected_answers"]))
+    assert calm.transcript_for_log.startswith("recording: ")

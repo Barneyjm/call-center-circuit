@@ -13,9 +13,12 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from decision_circuits import Audio
+
 from .circuit import build_circuit
 
 PRIORITY_NAMES = {0: "P4", 1: "P3", 2: "P2", 3: "P1"}
+AUDIO_MODEL = "circuit-audio-7b"  # the only backends that take a recording are the circuit family, hosted or local
 
 REPLIES = {
     "deflect": "Thanks for getting in touch. This is something you can do yourself in a minute: {article}. If that does not sort it, reply to this message and a person will pick it up.",
@@ -60,9 +63,14 @@ _counter = [1000]
 def triage(call: dict[str, Any], backend: Any, *, model: str | None = None, circuit=None) -> Ticket:
     """One call in, one ticket out, with every number the decision rested on."""
     c = circuit or build_circuit()
-    state = {"channel": call.get("channel", "phone"), "transcript": call["transcript"]}
-    if isinstance(backend, __import__("callcenter.backends", fromlist=["FakeBackend"]).FakeBackend):
-        state["expected_answers"] = call.get("expected_answers", {})
+    if call.get("audio"):
+        # the recording is the state: the audio model answers the same eight questions from the sound
+        state: Any = Audio(call["audio"], text=f"Inbound {call.get('channel', 'phone')} call")
+        model = model or AUDIO_MODEL
+    else:
+        state = {"channel": call.get("channel", "phone"), "transcript": call["transcript"]}
+        if isinstance(backend, __import__("callcenter.backends", fromlist=["FakeBackend"]).FakeBackend):
+            state["expected_answers"] = call.get("expected_answers", {})
     t0 = time.perf_counter()
     out = c.run(backend, state, model=model)
     ms = (time.perf_counter() - t0) * 1000
@@ -117,9 +125,16 @@ def triage(call: dict[str, Any], backend: Any, *, model: str | None = None, circ
         repeat_contact=repeat,
         needs_translation=translate,
         reply=reply,
-        transcript_for_log=redact(call["transcript"]) if do_redact else call["transcript"],
+        transcript_for_log=_for_log(call, do_redact),
         audit=audit,
     )
+
+
+def _for_log(call: dict[str, Any], do_redact: bool) -> str:
+    if call.get("audio"):
+        # a recording is never transcribed here; the log keeps the file, or withholds it
+        return "[recording withheld from the shared log: contains personal data]" if do_redact else f"recording: {call['audio']}"
+    return redact(call["transcript"]) if do_redact else call["transcript"]
 
 
 def _compact(a: dict[str, Any]) -> Any:

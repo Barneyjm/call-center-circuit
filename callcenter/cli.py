@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> None:
         for call in calls:
             t = triage(call, backend, model=args.model)
             route = t.audit["gates"]["route"]
-            redacted = "yes" if t.transcript_for_log != call["transcript"] else ""
+            redacted = "yes" if t.audit["gates"]["redact"]["value"] else ""
             trace = "; ".join(route["trace"] or [])[:70]
             print(
                 f"{call['file'][:28]:28s} {t.queue:16s} {t.priority:5s} {'yes' if t.assign_to_person else '':7s} "
@@ -60,8 +60,9 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _print_ticket(call, t) -> None:
-    print(f"\n== {call['file']}  ({call.get('channel', 'phone')})")
-    print("   " + call["transcript"][:160].replace("\n", " ") + ("..." if len(call["transcript"]) > 160 else ""))
+    print(f"\n== {call['file']}  ({call.get('channel', 'phone')}{', recording' if call.get('audio') else ''})")
+    if call["transcript"]:
+        print("   " + call["transcript"][:160].replace("\n", " ") + ("..." if len(call["transcript"]) > 160 else ""))
     print(f"-> {t.ref}: queue={t.queue} priority={t.priority} person={t.assign_to_person} deflect={t.deflected} repeat={t.repeat_contact} translate={t.needs_translation}")
     a = t.audit["answers"]
     top = max(a["dept"], key=a["dept"].get)
@@ -70,7 +71,7 @@ def _print_ticket(call, t) -> None:
         g = t.audit["gates"][gid]
         print(f"   {gid:10s} {g['outcome']:9s} {'; '.join(g['trace'] or [])}")
     print(f"   reply: {t.reply}")
-    if t.transcript_for_log != call["transcript"]:
+    if t.audit["gates"]["redact"]["value"]:
         print(f"   logged as: {t.transcript_for_log[:120]}")
     print(f"   {t.audit['model']} in {t.audit['latency_ms']:.0f} ms")
 

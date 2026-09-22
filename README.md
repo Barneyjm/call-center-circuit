@@ -37,8 +37,8 @@ Four commands:
 
 | | |
 |---|---|
-| `callcenter route <call.json>` | one call, the ticket, the reasons |
-| `callcenter batch calls/` | every sample call as a table |
+| `callcenter route <call.json>` or `<call.wav>` | one call, the ticket, the reasons |
+| `callcenter batch calls/` or `calls/audio/` | every sample call as a table |
 | `callcenter shuffle calls/` | the same calls with the department list reordered four ways: does the queue change? |
 | `callcenter diagram` | the circuit as Mermaid |
 
@@ -152,6 +152,36 @@ Same twelve calls, same circuit:
 The 1.7B is the smaller, free, open model and it shows on the two judgment calls. Its
 latency here is high because the side-by-side layout cannot share the state across the
 eight questions the way the ordinary layout does; a one-question request is 190 ms.
+
+## Part two: from the recording
+
+The same calls, spoken (Kokoro voices, `calls/audio/*.wav`, 5 to 16 seconds each), routed
+straight from the audio by `circuit-audio-7b`. No transcription step; the eight questions
+are answered from the sound.
+
+```bash
+uv run callcenter route calls/audio/03_double_charge.wav --backend circuits
+uv run callcenter batch calls/audio --backend circuits
+```
+
+A `.wav` is the state; the agent picks `circuit-audio-7b` and everything downstream is
+unchanged: same circuit, same gates, same ticket. Two things differ. A recording is never
+transcribed into the log: it is kept as a file reference, or withheld when `redact` fires.
+And only the circuit family takes audio (`--backend circuits` or `local`); Jev and the
+chat backends are text-only, so a recording sent to them is an error, not a silent guess.
+
+What the audio model did with the eleven English recordings, hosted, one warm container:
+
+| | circuit-audio-7b v1.2 |
+|---|---|
+| queue right | 8 of 11 (`cancellation` and the sales question went to `billing`; the wrong number to `cancellation`) |
+| card number heard and redacted | yes (pii .98 from the sound of the digits) |
+| angry double-charge to a person | yes |
+| two-issue call to triage | yes |
+| latency per recording, 8 questions | 1.1 to 1.5 s warm; the first call pays a cold start of about a minute |
+
+Clips longer than 30 seconds are judged on their first 30; split long calls and ask per
+chunk. The Spanish call has no recording because the stock voices are English.
 
 ## Inside an agent framework
 
