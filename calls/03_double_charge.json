@@ -38,9 +38,11 @@
    "yes": 0.8,
    "no": 0.2
   },
-  "english": {
-   "yes": 0.99,
-   "no": 0.01
+  "language": {
+   "English": 0.99,
+   "Spanish": 0.009,
+   "French": 0.001,
+   "other": 0.001
   }
  }
 }

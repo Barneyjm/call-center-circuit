@@ -60,7 +60,7 @@ def test_repeat_contact_does_not_sit_at_p4():
 def test_every_ticket_carries_a_full_audit():
     for cid in CALLS:
         t = run(cid)
-        assert set(t.audit["answers"]) == {"dept", "urgency", "angry", "pii", "repeat", "self_service", "single_topic", "english"}
+        assert set(t.audit["answers"]) == {"dept", "urgency", "angry", "pii", "repeat", "self_service", "single_topic", "language"}
         assert all("trace" in g for g in t.audit["gates"].values())
 
 

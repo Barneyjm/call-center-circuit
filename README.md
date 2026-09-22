@@ -94,7 +94,7 @@ one request:
 | `repeat` | yes/no | attach the previous ticket, skip the back of the queue |
 | `self_service` | yes/no | send a help article instead of opening a ticket |
 | `single_topic` | yes/no | the checker: a route is only trusted when the contact is about one thing |
-| `english` | yes/no | the translated queue |
+| `language` | choice of 4 | the translated queue |
 
 And the gates:
 
@@ -170,18 +170,23 @@ transcribed into the log: it is kept as a file reference, or withheld when `reda
 And only the circuit family takes audio (`--backend circuits` or `local`); Jev and the
 chat backends are text-only, so a recording sent to them is an error, not a silent guess.
 
-What the audio model did with the eleven English recordings, hosted, one warm container:
+What the audio model did with the twelve recordings, hosted, one warm container:
 
 | | circuit-audio-7b v1.2 |
 |---|---|
-| queue right | 8 of 11 (`cancellation` and the sales question went to `billing`; the wrong number to `cancellation`) |
+| queue right | 9 of 12 (`cancellation` and the sales question went to `billing`; the wrong number to `cancellation`) |
 | card number heard and redacted | yes (pii .98 from the sound of the digits) |
 | angry double-charge to a person | yes |
 | two-issue call to triage | yes |
 | latency per recording, 8 questions | 1.1 to 1.5 s warm; the first call pays a cold start of about a minute |
 
 Clips longer than 30 seconds are judged on their first 30; split long calls and ask per
-chunk. The Spanish call has no recording because the stock voices are English.
+chunk. The Spanish call is recorded with Kokoro's Spanish voice and routes to billing from the
+sound. It is also why the language question is a choice: asked "is the caller speaking
+English?" the audio model says yes at p=1.00 to the Spanish clip, because its training
+audio is all English and a yes/no gives it nothing to compare against. Offered English,
+Spanish, French or other, it names Spanish at .92. A question worded as a comparison is
+often the fix for a model that answers a yes/no by default.
 
 ## Inside an agent framework
 

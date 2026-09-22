@@ -53,7 +53,9 @@ def build_circuit() -> Circuit:
         false="Needs a person or an account change only staff can make",
     )
     c.noul("single_topic", "Is the caller raising one issue, rather than several unrelated ones?", true="One issue", false="Several unrelated issues")
-    c.noul("english", "Is the transcript in English?", true="English", false="Another language")
+    # Asked as a choice, not "is it English?": the audio model answers that yes/no with yes for
+    # every clip it hears, and names the language correctly when it is offered the options.
+    c.choice("language", "Which language is the caller speaking?", {"English": None, "Spanish": None, "French": None, "other": "Any other language"})
 
     # ---- what the code decides ------------------------------------------------------
     # The queue. The pick is trusted only when the model is confident and the checker
@@ -70,7 +72,7 @@ def build_circuit() -> Circuit:
     # A repeat contact gets the previous ticket attached and skips the queue's back.
     c.gate("repeat_contact", Q("repeat") >= 0.7, band=0.1, on_uncertain="default", default=False)
     # Not English: a translated queue, whatever the department.
-    c.gate("needs_translation", ~Q("english") >= 0.5, band=0.1, on_uncertain="default", default=False)
+    c.gate("needs_translation", ~Q("language")["English"] >= 0.5, band=0.1, on_uncertain="default", default=False)
     # The department argmax on its own, for the shuffle demo: what the model said before verification.
     c.gate("dept_raw", argmax("dept"))
     return c
