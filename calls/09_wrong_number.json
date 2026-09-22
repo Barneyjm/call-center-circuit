@@ -1,0 +1,46 @@
+{
+ "id": "09_wrong_number",
+ "channel": "phone",
+ "transcript": "Hi, is this the dentist? I'm trying to move my appointment on Thursday to the afternoon.",
+ "expected_answers": {
+  "dept": {
+   "billing": 0.0083,
+   "technical": 0.0083,
+   "account_access": 0.0083,
+   "cancellation": 0.0083,
+   "sales": 0.0083,
+   "complaint": 0.0083,
+   "other": 0.95
+  },
+  "urgency": {
+   "0": 0.9,
+   "1": 0.0333,
+   "2": 0.0333,
+   "3": 0.0333
+  },
+  "angry": {
+   "yes": 0.02,
+   "no": 0.98
+  },
+  "pii": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "repeat": {
+   "yes": 0.02,
+   "no": 0.98
+  },
+  "self_service": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "single_topic": {
+   "yes": 0.95,
+   "no": 0.05
+  },
+  "english": {
+   "yes": 0.99,
+   "no": 0.01
+  }
+ }
+}

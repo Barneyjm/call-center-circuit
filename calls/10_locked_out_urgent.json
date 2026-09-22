@@ -1,0 +1,46 @@
+{
+ "id": "10_locked_out_urgent",
+ "channel": "chat",
+ "transcript": "My account was locked for 'suspicious activity' and I did not do anything. I have payroll to run in the next hour and it's all in there. Please unlock it or tell me what you need from me.",
+ "expected_answers": {
+  "dept": {
+   "billing": 0.0167,
+   "technical": 0.0167,
+   "account_access": 0.9,
+   "cancellation": 0.0167,
+   "sales": 0.0167,
+   "complaint": 0.0167,
+   "other": 0.0167
+  },
+  "urgency": {
+   "0": 0.0833,
+   "1": 0.0833,
+   "2": 0.75,
+   "3": 0.0833
+  },
+  "angry": {
+   "yes": 0.35,
+   "no": 0.65
+  },
+  "pii": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "repeat": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "self_service": {
+   "yes": 0.1,
+   "no": 0.9
+  },
+  "single_topic": {
+   "yes": 0.95,
+   "no": 0.05
+  },
+  "english": {
+   "yes": 0.99,
+   "no": 0.01
+  }
+ }
+}

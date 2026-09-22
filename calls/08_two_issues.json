@@ -1,0 +1,46 @@
+{
+ "id": "08_two_issues",
+ "channel": "phone",
+ "transcript": "Two things. The app crashes every time I open the reports tab since the update. And separately, my invoice from March shows a plan I never signed up for. Which of those do you want first?",
+ "expected_answers": {
+  "dept": {
+   "billing": 0.45,
+   "technical": 0.45,
+   "account_access": 0.02,
+   "cancellation": 0.02,
+   "sales": 0.02,
+   "complaint": 0.02,
+   "other": 0.02
+  },
+  "urgency": {
+   "0": 0.1333,
+   "1": 0.6,
+   "2": 0.1333,
+   "3": 0.1333
+  },
+  "angry": {
+   "yes": 0.15,
+   "no": 0.85
+  },
+  "pii": {
+   "yes": 0.03,
+   "no": 0.97
+  },
+  "repeat": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "self_service": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "single_topic": {
+   "yes": 0.08,
+   "no": 0.92
+  },
+  "english": {
+   "yes": 0.99,
+   "no": 0.01
+  }
+ }
+}

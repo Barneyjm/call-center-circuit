@@ -1,0 +1,46 @@
+{
+ "id": "02_outage",
+ "channel": "phone",
+ "transcript": "Our whole office has been offline since 8 this morning. Nothing loads, the status page says fine, and we have a client demo in forty minutes. I need someone on this now.",
+ "expected_answers": {
+  "dept": {
+   "billing": 0.0167,
+   "technical": 0.9,
+   "account_access": 0.0167,
+   "cancellation": 0.0167,
+   "sales": 0.0167,
+   "complaint": 0.0167,
+   "other": 0.0167
+  },
+  "urgency": {
+   "0": 0.0333,
+   "1": 0.0333,
+   "2": 0.0333,
+   "3": 0.9
+  },
+  "angry": {
+   "yes": 0.55,
+   "no": 0.45
+  },
+  "pii": {
+   "yes": 0.02,
+   "no": 0.98
+  },
+  "repeat": {
+   "yes": 0.1,
+   "no": 0.9
+  },
+  "self_service": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "single_topic": {
+   "yes": 0.95,
+   "no": 0.05
+  },
+  "english": {
+   "yes": 0.99,
+   "no": 0.01
+  }
+ }
+}

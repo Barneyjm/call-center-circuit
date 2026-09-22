@@ -1,0 +1,46 @@
+{
+ "id": "03_double_charge",
+ "channel": "phone",
+ "transcript": "You charged my card twice for the same order, 149 dollars each time, and the second charge overdrew my account. This is the third time I have called about it. I want the money back today or I am cancelling and disputing it with the bank.",
+ "expected_answers": {
+  "dept": {
+   "billing": 0.8,
+   "technical": 0.0333,
+   "account_access": 0.0333,
+   "cancellation": 0.0333,
+   "sales": 0.0333,
+   "complaint": 0.0333,
+   "other": 0.0333
+  },
+  "urgency": {
+   "0": 0.1333,
+   "1": 0.1333,
+   "2": 0.6,
+   "3": 0.1333
+  },
+  "angry": {
+   "yes": 0.9,
+   "no": 0.1
+  },
+  "pii": {
+   "yes": 0.15,
+   "no": 0.85
+  },
+  "repeat": {
+   "yes": 0.95,
+   "no": 0.05
+  },
+  "self_service": {
+   "yes": 0.05,
+   "no": 0.95
+  },
+  "single_topic": {
+   "yes": 0.8,
+   "no": 0.2
+  },
+  "english": {
+   "yes": 0.99,
+   "no": 0.01
+  }
+ }
+}
