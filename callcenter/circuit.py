@@ -7,7 +7,7 @@ answers, and audited per call.
 
 from __future__ import annotations
 
-from decision_circuits import Circuit, Q, argmax, order, verify
+from decision_circuits import Circuit, Q, argmax, at_least, order, verify
 
 DEPARTMENTS = {
     "billing": "Charges, refunds, invoices, payment methods, subscription changes",
@@ -49,6 +49,16 @@ LANGUAGES = dict.fromkeys(
 ) | {"other": "Any other language"}
 
 
+# When the route cannot be trusted, the one question that would settle it. The keys are what
+# the model picks; the agent turns the pick into the sentence it asks (agent.ASK_CALLER).
+ASK_NEXT = {
+    "account": "Ask for the email address or account number, to find the account",
+    "invoice": "Ask for the order or invoice number the caller means",
+    "device": "Ask which device and app version the problem is on",
+    "which_first": "Ask which of the caller's issues to handle first",
+    "nothing": "Nothing: what the caller said is enough to act on",
+}
+
 URGENCY = [
     "Can wait a few days: a question, a preference, a minor inconvenience",
     "Should be handled today: something is wrong but the caller can work around it",
@@ -57,9 +67,11 @@ URGENCY = [
 ]
 
 
-def build_circuit(max_options: int | None = None) -> Circuit:
+def build_circuit(max_options: int | None = None, v2: bool = False) -> Circuit:
     """`max_options` trims the language list for a backend that caps a question's options
-    (SemIf and Laya stop at 16, and refuse the whole request, not just that question)."""
+    (SemIf and Laya stop at 16, and refuse the whole request, not just that question).
+    `v2` adds the questions only circuit v2 models answer, on a transcript (not a recording):
+    every topic the caller raises, and the sentence that shows how urgent it is."""
     c = Circuit()
     languages = LANGUAGES if max_options is None else dict(list(LANGUAGES.items())[: max_options - 1]) | {"other": "Any other language"}
 
@@ -89,6 +101,11 @@ def build_circuit(max_options: int | None = None) -> Circuit:
     # Asked as a choice, not "is it English?": the audio model answers that yes/no with yes for
     # every clip it hears, and names the language correctly when it is offered the options.
     c.choice("language", "Which language is the caller speaking?", languages)
+    # An ordinary choice every backend answers: what to ask when the route is not trusted.
+    c.choice("ask_next", "If we cannot route this call yet, what single question should we ask the caller first?", ASK_NEXT)
+    if v2:
+        c.multi("topics", "Which of these does the caller raise? Mark every one that applies.", DEPARTMENTS)
+        c.locate("urgency_evidence", "Which sentence shows best how urgent this is for the caller?", none="no sentence speaks to urgency")
 
     # ---- what the code decides ------------------------------------------------------
     # The queue. The pick is trusted only when the model is confident and the checker
@@ -106,6 +123,11 @@ def build_circuit(max_options: int | None = None) -> Circuit:
     c.gate("repeat_contact", Q("repeat") >= 0.7, band=0.1, on_uncertain="default", default=False)
     # Not English: a translated queue, whatever the department.
     c.gate("needs_translation", ~Q("language")["English"] >= 0.5, band=0.1, on_uncertain="default", default=False)
+    # The question to put to the caller when the route escalates; trusted only when the pick is clear.
+    c.gate("ask", argmax("ask_next", min_confidence=0.2))
+    if v2:
+        # Two or more topics: the ticket lists them all, so triage splits it instead of rereading it.
+        c.gate("several_topics", at_least(2, "topics"), band=0.1, on_uncertain="default", default=False)
     # The department argmax on its own, for the shuffle demo: what the model said before verification.
     c.gate("dept_raw", argmax("dept"))
     return c

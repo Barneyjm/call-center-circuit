@@ -25,14 +25,22 @@ REPLIES = {
     "human_now": "Thanks, I have passed this straight to a member of the {dept} team as {priority}, and they will contact you {when}. Your reference is {ref}.",
     "ticket": "Thanks for getting in touch. I have opened ticket {ref} with the {dept} team at {priority}; you can expect a reply {when}.",
     "triage": "Thanks for getting in touch. I have opened ticket {ref}; a member of the team will read it and route it {when}.",
+    "triage_ask": "Thanks for getting in touch. I have opened ticket {ref}; a member of the team will route it {when}. To speed that up: {question}",
 }
 WHEN = {"P1": "within the hour", "P2": "today", "P3": "within one working day", "P4": "within three working days"}
+ASK_CALLER = {
+    "account": "Could you tell me the email address or account number on the account?",
+    "invoice": "Which order or invoice number is this about?",
+    "device": "Which device and app version are you seeing this on?",
+    "which_first": "You mentioned a few things; which should we look at first?",
+}
 ARTICLES = {
     "account_access": "Reset your password: help/reset-password",
     "billing": "Update your payment method: help/payment-methods",
     "technical": "Restart and reconnect your device: help/restart",
 }
 
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
 _PII = re.compile(r"\b\d(?:[ -]?\d){11,18}\b|\b\d{3}-\d{2}-\d{4}\b|[\w.+-]+@[\w-]+\.[\w.]+|\b\d{1,5} [A-Z][a-z]+ (?:Street|St|Avenue|Ave|Road|Rd|Lane|Ln|Drive|Dr)\b")
 
 
@@ -49,6 +57,9 @@ class Ticket:
     deflected: bool
     repeat_contact: bool
     needs_translation: bool
+    topics: list[str]  # every department the call touches (v2 models), else just the queue
+    urgency_evidence: str | None  # the sentence the urgency rests on (v2 models)
+    ask_caller: str | None  # the question put to the caller when the route was not trusted
     reply: str
     transcript_for_log: str
     audit: dict[str, Any] = field(default_factory=dict)
@@ -60,17 +71,32 @@ class Ticket:
 _counter = [1000]
 
 
+def uses_v2(circuit) -> bool:
+    return "topics" in circuit.questions
+
+
+def state_for(call: dict[str, Any], circuit, backend: Any, transcript: str | None = None) -> Any:
+    """What the model reads. A circuit with v2 questions gets the transcript as a list of
+    sentences, so `urgency_evidence` can point at one of them."""
+    text = call["transcript"] if transcript is None else transcript
+    state: dict[str, Any] = {"channel": call.get("channel", "phone"), "transcript": _SENTENCE.split(text.strip()) if uses_v2(circuit) else text}
+    if isinstance(backend, __import__("callcenter.backends", fromlist=["FakeBackend"]).FakeBackend):
+        state["expected_answers"] = call.get("expected_answers", {})
+    return state
+
+
 def triage(call: dict[str, Any], backend: Any, *, model: str | None = None, circuit=None) -> Ticket:
     """One call in, one ticket out, with every number the decision rested on."""
     c = circuit or build_circuit()
     if call.get("audio"):
-        # the recording is the state: the audio model answers the same eight questions from the sound
+        # the recording is the state: the audio model answers the same questions from the sound;
+        # the v2 questions point into text, so a recording is asked without them
+        if uses_v2(c):
+            c = build_circuit(len(c.questions["language"]["criteria"]))
         state: Any = Audio(call["audio"], text=f"Inbound {call.get('channel', 'phone')} call")
         model = model or AUDIO_MODEL
     else:
-        state = {"channel": call.get("channel", "phone"), "transcript": call["transcript"]}
-        if isinstance(backend, __import__("callcenter.backends", fromlist=["FakeBackend"]).FakeBackend):
-            state["expected_answers"] = call.get("expected_answers", {})
+        state = state_for(call, c, backend)
     t0 = time.perf_counter()
     out = c.run(backend, state, model=model)
     ms = (time.perf_counter() - t0) * 1000
@@ -98,14 +124,22 @@ def triage(call: dict[str, Any], backend: Any, *, model: str | None = None, circ
     _counter[0] += 1
     ref = f"CC-{_counter[0]}"
     when = WHEN[priority]
+    ask = g["ask"]["value"] if not routed and g["ask"]["outcome"] == "decided" else None
+    ask_caller = ASK_CALLER.get(ask) if ask else None  # "nothing" has no question
     if deflect:
         reply = REPLIES["deflect"].format(article=ARTICLES[queue])
     elif person:
         reply = REPLIES["human_now"].format(dept=queue if routed else "support", priority=priority, when=when, ref=ref)
     elif routed:
         reply = REPLIES["ticket"].format(ref=ref, dept=queue, priority=priority, when=when)
+    elif ask_caller:
+        reply = REPLIES["triage_ask"].format(ref=ref, when=when, question=ask_caller)
     else:
         reply = REPLIES["triage"].format(ref=ref, when=when)
+    a = out["answers"]
+    topics = a["topics"]["selected"] if "topics" in a else [queue]
+    ev = a.get("urgency_evidence")
+    evidence = ev["located"][0]["text"] if ev and ev["located"] and ev["none"] < 0.5 else None
 
     last = getattr(backend, "last_response", None) or {}
     audit = {
@@ -124,6 +158,9 @@ def triage(call: dict[str, Any], backend: Any, *, model: str | None = None, circ
         deflected=deflect,
         repeat_contact=repeat,
         needs_translation=translate,
+        topics=topics,
+        urgency_evidence=evidence,
+        ask_caller=ask_caller,
         reply=reply,
         transcript_for_log=_for_log(call, do_redact),
         audit=audit,
@@ -140,4 +177,16 @@ def _for_log(call: dict[str, Any], do_redact: bool) -> str:
 def _compact(a: dict[str, Any]) -> Any:
     if a["type"] == "noul":
         return round(float(a["noul"]), 3)
+    if a["type"] == "locate":
+        return {"none": round(float(a["none"]), 3), **{x["path"]: round(float(x["probability"]), 3) for x in a["located"]}}
     return {k: round(float(v), 3) for k, v in a["probabilities"].items()}
+
+
+def explain(call: dict[str, Any], backend: Any, *, model: str | None = None, circuit=None, limit: int = 12) -> dict[str, Any]:
+    """Remove one sentence of the transcript at a time and run the circuit again: which
+    sentences the queue, the priority and the call to a person rest on. An intervention,
+    so it is a fact about what the circuit does, on any backend."""
+    c = circuit or build_circuit()
+    sentences = _SENTENCE.split(call["transcript"].strip())[:limit]
+    edits = {f"-[{i}] {t}": state_for(call, c, backend, " ".join(sentences[:i] + sentences[i + 1 :])) for i, t in enumerate(sentences)}
+    return c.intervene(backend, state_for(call, c, backend), edits, model=model)

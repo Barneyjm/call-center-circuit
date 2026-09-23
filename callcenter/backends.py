@@ -46,11 +46,24 @@ class FakeBackend:
         out = {}
         for qid, q in questions.items():
             probs = table.get(qid)
+            if q["type"] == "multi":  # independent per option; unwritten options do not apply
+                probs = {k: float((probs or {}).get(k, 0.05)) for k in q["criteria"]}
+                out[qid] = {"type": "multi", "selected": sorted((k for k, p in probs.items() if p >= 0.5), key=lambda k: -probs[k]), "probabilities": probs}
+                continue
+            if q["type"] == "locate":  # {"transcript[2]": p, ..., "none": p}; the text comes from the state
+                probs = probs or {"none": 1.0}
+                sentences = state.get("transcript", []) if isinstance(state, dict) else []
+                located = [{"path": k, "text": sentences[int(k.split("[")[1].rstrip("]"))], "probability": float(p)} for k, p in sorted(probs.items(), key=lambda kv: -kv[1]) if k != "none"]
+                out[qid] = {"type": "locate", "located": located[:3], "none": float(probs.get("none", 0.0)), "confidence": 0.5}
+                continue
             if probs is None:
                 keys = ["yes", "no"] if q["type"] == "noul" else (list(q["criteria"]) if q["type"] == "choice" else [str(i) for i in range(len(q["criteria"]))])
                 probs = dict.fromkeys(keys, 1.0 / len(keys))
             out[qid] = answer_from_probabilities(q, probs)
         return out
+
+
+V2_BACKENDS = ("circuits", "local", "fake")  # the ones that answer multi and locate
 
 
 def pick_backend(name: str, model: str | None = None) -> Any:

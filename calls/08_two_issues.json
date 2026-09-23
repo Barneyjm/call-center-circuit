@@ -41,6 +41,17 @@
   "language": {
    "English": 0.99,
    "Spanish": 0.01
+  },
+  "topics": {
+   "technical": 0.93,
+   "billing": 0.9
+  },
+  "ask_next": {
+   "which_first": 0.85,
+   "invoice": 0.08,
+   "account": 0.03,
+   "device": 0.02,
+   "nothing": 0.02
   }
  }
 }

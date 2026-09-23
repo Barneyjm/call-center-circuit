@@ -40,6 +40,7 @@ Four commands:
 | `callcenter route <call.json>` or `<call.wav>` | one call, the ticket, the reasons |
 | `callcenter batch calls/` or `calls/audio/` | every sample call as a table |
 | `callcenter shuffle calls/` | the same calls with the department list reordered four ways: does the queue change? |
+| `callcenter explain <call.json>` | remove one sentence at a time and rerun: which sentence each decision rests on |
 | `callcenter diagram` | the circuit as Mermaid |
 
 `--json` prints the full ticket with its audit record: every probability, every gate's
@@ -101,6 +102,17 @@ one request:
 | `self_service` | yes/no | send a help article instead of opening a ticket |
 | `single_topic` | yes/no | the checker: a route is only trusted when the contact is about one thing |
 | `language` | choice of 22 | the translated queue |
+| `ask_next` | choice of 5 | when the route is not trusted, the one question to put to the caller |
+
+With a circuit v2 model (`--backend circuits` or `local`, circuit-1.7b v2.0 and later) two
+more go out, on transcripts only (a recording is asked without them):
+
+| question | type | used for |
+|---|---|---|
+| `topics` | multi over the 7 departments | every team the call touches, each with its own probability; two or more and the ticket lists them all |
+| `urgency_evidence` | locate | the sentence the urgency rests on, quoted in the ticket |
+
+`--no-v2` turns them off; `--v2` forces them on for a backend that answers them.
 
 And the gates:
 
@@ -125,6 +137,20 @@ Three things a classifier at a fixed 0.5 does not give you:
 
 Every ticket carries the answers and traces, so a decision can be replayed months later
 with `c.evaluate(audit["answers"])` and no model at all.
+
+## What a decision rests on
+
+```
+$ callcenter explain calls/03_double_charge.json --backend circuits
+```
+
+removes one sentence of the transcript at a time and runs the whole circuit again. Each line
+is an intervention: the sentence left out, the decisions that changed, how far the key
+answers moved. It is a fact about what the circuit does, not a story the model tells about
+itself, and it works on every backend. It is also how you find a model reading the wrong
+thing: on the double-charge call, circuit-1.7b v2.0 calls it a first contact even though
+the caller says "This is the third time I have called about it", and removing that sentence
+changes nothing.
 
 ## The shuffle demo
 

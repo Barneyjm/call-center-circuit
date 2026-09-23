@@ -3,6 +3,7 @@
 callcenter route calls/03_double_charge.json --backend jev
 callcenter batch calls --backend circuits
 callcenter shuffle calls --backend jev          # does the queue change when the department list is reordered?
+callcenter explain calls/08_two_issues.json     # which sentence each decision rests on
 callcenter diagram                              # the circuit as Mermaid
 """
 
@@ -12,28 +13,30 @@ import argparse
 import random
 import sys
 
-from .agent import triage
-from .backends import BACKENDS, pick_backend
+from .agent import explain, triage
+from .backends import BACKENDS, V2_BACKENDS, pick_backend
 from .calls import load_calls
 from .circuit import DEPARTMENTS, build_circuit
 
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="callcenter", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=["route", "batch", "shuffle", "diagram"])
+    ap.add_argument("command", choices=["route", "batch", "shuffle", "explain", "diagram"])
     ap.add_argument("path", nargs="?", default="calls")
     ap.add_argument("--backend", default="jev", help=", ".join(BACKENDS))
     ap.add_argument("--model", default=None)
     ap.add_argument("--max-options", type=int, default=None, help="trim the language list for a backend that caps options (semif, laya: 16)")
     ap.add_argument("--json", action="store_true", help="print the full ticket with its audit record")
+    ap.add_argument("--v2", action=argparse.BooleanOptionalAction, default=None, help=f"ask the questions only circuit v2 models answer (default: on for {', '.join(V2_BACKENDS)})")
     args = ap.parse_args(argv)
+    v2 = args.v2 if args.v2 is not None else args.backend in V2_BACKENDS
 
     if args.command == "diagram":
-        print(build_circuit(args.max_options).to_mermaid())
+        print(build_circuit(args.max_options, v2).to_mermaid())
         return
     backend = pick_backend(args.backend, args.model)
     calls = load_calls(args.path)
-    circuit = build_circuit(args.max_options)
+    circuit = build_circuit(args.max_options, v2)
 
     if args.command == "route":
         for call in calls:
@@ -57,6 +60,11 @@ def main(argv: list[str] | None = None) -> None:
             )
         return
 
+    if args.command == "explain":
+        for call in calls:
+            _print_explanation(call, explain(call, backend, model=args.model, circuit=circuit))
+        return
+
     if args.command == "shuffle":
         _shuffle(calls, backend, args.model)
 
@@ -72,10 +80,26 @@ def _print_ticket(call, t) -> None:
     for gid in ("route", "human_now", "redact", "deflect"):
         g = t.audit["gates"][gid]
         print(f"   {gid:10s} {g['outcome']:9s} {'; '.join(g['trace'] or [])}")
+    if "topics" in a:
+        print(f"   topics: {', '.join(t.topics) or 'none clear'}  ({', '.join(f'{k} {v:.2f}' for k, v in sorted(a['topics'].items(), key=lambda kv: -kv[1])[:3])})")
+    if t.urgency_evidence:
+        print(f'   urgency rests on: "{t.urgency_evidence}"')
+    if t.ask_caller:
+        print(f"   ask the caller: {t.ask_caller}")
     print(f"   reply: {t.reply}")
     if t.audit["gates"]["redact"]["value"]:
         print(f"   logged as: {t.transcript_for_log[:120]}")
     print(f"   {t.audit['model']} in {t.audit['latency_ms']:.0f} ms")
+
+
+def _print_explanation(call, r) -> None:
+    """Per sentence removed: which decisions change, and how far the key answers move."""
+    base = r["baseline"]["gates"]
+    print(f"\n== {call['file']}: queue {base['route']['value'] or 'triage'}, priority bucket {base['priority']['value']}, person {base['human_now']['value']}")
+    for seg, e in r["effects"].items():
+        moved = [f"{gid} {e['gates'][gid]['before']}->{e['gates'][gid]['after']}" for gid in e["flipped"] if not gid.startswith("dept_raw")]
+        dp = {q: e["answers"][q]["dp"] for q in ("angry", "urgency") if q in e["answers"]}
+        print(f"   {seg[:72]:74s} {'; '.join(moved) or 'no decision changes':40s} " + " ".join(f"{q} {v:+.2f}" for q, v in dp.items()))
 
 
 def _shuffle(calls, backend, model) -> None:

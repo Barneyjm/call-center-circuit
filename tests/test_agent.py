@@ -60,7 +60,7 @@ def test_repeat_contact_does_not_sit_at_p4():
 def test_every_ticket_carries_a_full_audit():
     for cid in CALLS:
         t = run(cid)
-        assert set(t.audit["answers"]) == {"dept", "urgency", "angry", "pii", "repeat", "self_service", "single_topic", "language"}
+        assert set(t.audit["answers"]) == {"dept", "urgency", "angry", "pii", "repeat", "self_service", "single_topic", "language", "ask_next"}
         assert all("trace" in g for g in t.audit["gates"].values())
 
 
@@ -108,3 +108,34 @@ def test_max_options_trims_the_language_list_for_capped_backends():
     trimmed = build_circuit(max_options=16).questions["language"]["criteria"]
     keys = list(trimmed)
     assert len(trimmed) == 16 and keys[0] == "English" and keys[-1] == "other"
+
+
+def run_v2(call_id):
+    return triage(CALLS[call_id], FakeBackend(), circuit=build_circuit(v2=True))
+
+
+def test_v2_two_issue_call_lists_both_topics_and_asks_which_first():
+    t = run_v2("08_two_issues")
+    assert t.queue == "triage" and set(t.topics) == {"technical", "billing"}
+    assert t.audit["gates"]["several_topics"]["value"] is True
+    assert t.ask_caller and "which should we look at first" in t.ask_caller and t.ask_caller in t.reply
+
+
+def test_v2_urgency_points_at_the_sentence_it_rests_on():
+    t = run_v2("02_outage")
+    assert t.priority == "P1" and t.urgency_evidence.startswith("Nothing loads")
+    assert t.topics == ["technical"]
+
+
+def test_v1_circuit_asks_no_v2_questions_and_a_recording_drops_them():
+    assert "topics" not in build_circuit().questions
+    audio_calls = {c["id"]: c for c in load_calls(Path(__file__).resolve().parents[1] / "calls" / "audio")}
+    t = triage(audio_calls["04_card_number"], FakeBackend(CALLS["04_card_number"]["expected_answers"]), circuit=build_circuit(v2=True))
+    assert "topics" not in t.audit["answers"] and t.topics == [t.queue]
+
+
+def test_explain_reruns_the_circuit_once_per_sentence():
+    from callcenter.agent import explain
+
+    r = explain(CALLS["08_two_issues"], FakeBackend(), circuit=build_circuit(v2=True))
+    assert len(r["effects"]) == 4 and all("flipped" in e for e in r["effects"].values())

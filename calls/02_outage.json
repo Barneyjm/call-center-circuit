@@ -41,6 +41,14 @@
   "language": {
    "English": 0.99,
    "Spanish": 0.01
+  },
+  "topics": {
+   "technical": 0.97
+  },
+  "urgency_evidence": {
+   "transcript[1]": 0.7,
+   "transcript[2]": 0.2,
+   "none": 0.05
   }
  }
 }
